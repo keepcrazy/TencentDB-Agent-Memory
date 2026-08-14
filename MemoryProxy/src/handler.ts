@@ -1478,17 +1478,33 @@ function createUsageTapTransform(ctx: TapContext): TransformStream<Uint8Array, U
   let assistantContent = "";
   const toolCallAccumulators = new Map<number, ToolCallAccumulator>();
 
-  function processSseChunk(chunk: string): void {
+  function processSseChunk(chunk: string): boolean {
     sseBuf += chunk;
     const parts = sseBuf.split("\n\n");
     sseBuf = parts.pop() ?? "";
+    let sawDone = false;
     for (const part of parts) {
+      if (part.split("\n").some((line) => line.trim() === "data: [DONE]")) {
+        sawDone = true;
+      }
       const usage = extractSseUsage(part);
       if (usage) lastUsage = usage;
       const { content, toolCallDeltas } = extractSseContentAndTools(part);
       assistantContent += content;
       mergeToolCallDeltas(toolCallAccumulators, toolCallDeltas);
     }
+    return sawDone;
+  }
+
+  let finalizePromise: Promise<void> | null = null;
+
+  function finalizeOnce(): Promise<void> {
+    if (!finalizePromise) {
+      finalizePromise = finalize().catch((err: unknown) => {
+        pipe.error("STREAM_FINALIZE", err);
+      });
+    }
+    return finalizePromise;
   }
 
   async function finalize(): Promise<void> {
@@ -1705,17 +1721,15 @@ function createUsageTapTransform(ctx: TapContext): TransformStream<Uint8Array, U
     transform(chunk, controller) {
       controller.enqueue(chunk);
       try {
-        processSseChunk(decoder.decode(chunk, { stream: true }));
+        if (processSseChunk(decoder.decode(chunk, { stream: true }))) {
+          void finalizeOnce();
+        }
       } catch (err: unknown) {
         pipe.error("STREAM_TAP", err);
       }
     },
     async flush() {
-      try {
-        await finalize();
-      } catch (err: unknown) {
-        pipe.error("STREAM_FINALIZE", err);
-      }
+      await finalizeOnce();
     },
   });
 }
