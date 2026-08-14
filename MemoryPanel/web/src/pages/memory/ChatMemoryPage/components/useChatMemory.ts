@@ -41,6 +41,7 @@ export function useChatMemory(props: { activeTeamId?: string | null } = {}) {
   >({});
   const [layerLoading, setLayerLoading] = useState(false);
   const [layerItemLoadingId, setLayerItemLoadingId] = useState<string | null>(null);
+  const [layerItemDeletingId, setLayerItemDeletingId] = useState<string | null>(null);
   // 详情页时间筛选器（仅 L0 / L1 生效），默认「前一天 ~ 当前」
   const [timeRange, setTimeRange] = useState<TimeRange>(() => defaultTimeRange());
   // 后端探测到筛选范围过大时为 true，BlockDetail 显示提示而非空态
@@ -390,6 +391,74 @@ export function useChatMemory(props: { activeTeamId?: string | null } = {}) {
     [selected?.id, selected?.layers.L2, layer, t],
   );
 
+  const handleLayerItemDelete = useCallback(
+    async (itemId: string) => {
+      const targetBlock = selected;
+      const targetLayer = layer;
+      if (
+        !targetBlock ||
+        targetLayer === 'L3' ||
+        targetBlock.uploaded_by_user_id !== currentUserId ||
+        layerItemDeletingId
+      ) {
+        return;
+      }
+
+      const ok = await tea.confirm({
+        message: t('memory.confirm.deleteItem', { layer: targetLayer }),
+        description: t('memory.confirm.deleteItem.desc'),
+        okText: t('common.delete'),
+      });
+      if (!ok) return;
+
+      setLayerItemDeletingId(itemId);
+      try {
+        const result = await chatMemoryApi.deleteLayerItem(targetBlock.id, targetLayer, itemId);
+        if (result?.deleted_count === 0) {
+          throw new Error(t('memory.notify.deleteItemNotFound'));
+        }
+
+        setBlocks((prev) =>
+          prev.map((b) => {
+            if (b.id !== targetBlock.id) return b;
+
+            const layers = { ...b.layers };
+            if (targetLayer === 'L0') {
+              layers.L0 = b.layers.L0.filter((item) => item.id !== itemId);
+            } else if (targetLayer === 'L1') {
+              layers.L1 = b.layers.L1.filter((item) => item.id !== itemId);
+            } else {
+              layers.L2 = b.layers.L2.filter((item) => item.id !== itemId);
+            }
+
+            const layerCounts = { ...b.layerCounts };
+            const knownCount = layerCounts[targetLayer];
+            if (typeof knownCount === 'number') {
+              layerCounts[targetLayer] = Math.max(0, knownCount - 1);
+            }
+
+            const persistedCounts = { ...b.layer_counts };
+            if (targetLayer === 'L0') {
+              persistedCounts.L0_messages = Math.max(0, persistedCounts.L0_messages - 1);
+            } else if (targetLayer === 'L1') {
+              persistedCounts.L1 = Math.max(0, persistedCounts.L1 - 1);
+            } else {
+              persistedCounts.L2 = Math.max(0, persistedCounts.L2 - 1);
+            }
+
+            return { ...b, layers, layerCounts, layer_counts: persistedCounts };
+          }),
+        );
+        tea.notify.success(t('memory.notify.deleteItemSuccess'));
+      } catch (e: unknown) {
+        tea.notify.error(e instanceof Error ? e.message : t('memory.notify.deleteItemFailed'));
+      } finally {
+        setLayerItemDeletingId(null);
+      }
+    },
+    [selected, layer, currentUserId, layerItemDeletingId, t],
+  );
+
   // ── 过滤与辅助 ──
   const filtered = useMemo(() => {
     if (scopeTab === 'fixed')
@@ -520,6 +589,7 @@ export function useChatMemory(props: { activeTeamId?: string | null } = {}) {
     layerPages,
     layerLoading,
     layerItemLoadingId,
+    layerItemDeletingId,
     l0MoreLoading,
     timeRange,
     setTimeRange,
@@ -542,6 +612,7 @@ export function useChatMemory(props: { activeTeamId?: string | null } = {}) {
     handleLayerPageChange,
     handleL0LoadMore,
     handleLayerItemLoad,
+    handleLayerItemDelete,
     handleDeleteBlock,
     handleImport,
     handleToggleScope,

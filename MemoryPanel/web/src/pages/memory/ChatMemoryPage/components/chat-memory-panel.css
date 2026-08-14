@@ -593,6 +593,37 @@
   opacity: 0.8;
 }
 
+._memory-detail-item-delete {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--tea-color-text-tertiary);
+  cursor: pointer;
+  opacity: 0.65;
+  transition:
+    color 0.15s ease-in-out,
+    background-color 0.15s ease-in-out,
+    opacity 0.15s ease-in-out;
+}
+
+._memory-detail-item-delete:hover:not(:disabled) {
+  color: var(--tea-color-text-error-default);
+  background: var(--tea-color-bg-error-lighten-default);
+  opacity: 1;
+}
+
+._memory-detail-item-delete:disabled {
+  cursor: wait;
+  opacity: 0.35;
+}
+
 /* ===== L1/L2/L3 原子列表 ===== */
 ._memory-detail-atomic-list {
   list-style: none;
@@ -616,6 +647,17 @@
 ._memory-detail-atomic-item:hover {
   border-color: var(--tea-color-border-brand-default);
   box-shadow: var(--tea-shadow-sm);
+}
+
+._memory-detail-atomic-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+._memory-detail-atomic-toolbar > ._memory-detail-atomic-head {
+  flex: 1;
+  width: auto;
 }
 
 /* 标题行：层级徽章 + 标题 + 右侧（loading/时间/展开箭头） */

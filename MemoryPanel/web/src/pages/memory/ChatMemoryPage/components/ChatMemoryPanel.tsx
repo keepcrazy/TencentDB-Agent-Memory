@@ -66,6 +66,7 @@ export default function ChatMemoryPanel(
     setLayer,
     layerLoading,
     layerItemLoadingId,
+    layerItemDeletingId,
     l0MoreLoading,
     timeRange,
     setTimeRange,
@@ -88,6 +89,7 @@ export default function ChatMemoryPanel(
     handleLayerPageChange,
     handleL0LoadMore,
     handleLayerItemLoad,
+    handleLayerItemDelete,
     handleDeleteBlock,
     handleImport,
     handleToggleScope,
@@ -274,6 +276,9 @@ export default function ChatMemoryPanel(
                 onLayerPageChange={handleLayerPageChange}
                 onLayerItemLoad={handleLayerItemLoad}
                 layerItemLoadingId={layerItemLoadingId}
+                canDeleteItems={selected.uploaded_by_user_id === currentUserId}
+                onDeleteItem={handleLayerItemDelete}
+                deletingItemId={layerItemDeletingId}
                 onL0LoadMore={handleL0LoadMore}
                 l0MoreLoading={l0MoreLoading}
                 timeRange={timeRange}

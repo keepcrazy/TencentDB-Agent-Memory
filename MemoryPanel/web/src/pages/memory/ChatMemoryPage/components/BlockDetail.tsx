@@ -7,7 +7,13 @@ import { useLayers } from './constants';
 import { getLayerCount, stripAtMention, extractRole, formatDisplayTime } from './utils';
 import { useUserDisplayName } from '@/services/user-profile-store';
 import { MarkdownView } from '@/components/MarkdownView';
-import { AppIcon, UsergroupIcon, ChevronDownIcon, InfoCircleIcon } from 'tea-icons-react';
+import {
+  AppIcon,
+  UsergroupIcon,
+  ChevronDownIcon,
+  DeleteIcon,
+  InfoCircleIcon,
+} from 'tea-icons-react';
 
 const { RangePicker } = DatePicker;
 
@@ -25,12 +31,18 @@ function AtomicList({
   items,
   onLoadItem,
   loadingItemId,
+  canDelete,
+  onDeleteItem,
+  deletingItemId,
   timeFiltered,
 }: {
   layer: MemoryLayer;
   items: AtomicItem[];
   onLoadItem?: (itemId: string) => void;
   loadingItemId?: string | null;
+  canDelete?: boolean;
+  onDeleteItem?: (itemId: string) => void;
+  deletingItemId?: string | null;
   /** 当前层是否受时间筛选影响（仅 L1）：影响空态文案的语境 */
   timeFiltered?: boolean;
 }) {
@@ -52,6 +64,7 @@ function AtomicList({
         const isL2 = layer === 'L2';
         const hasBody = it.body.trim().length > 0;
         const loading = loadingItemId === it.id;
+        const deleting = deletingItemId === it.id;
         const time = formatDisplayTime(it.created_at);
         const head = (
           <>
@@ -83,18 +96,32 @@ function AtomicList({
         );
         return (
           <li key={it.id} className="_memory-detail-atomic-item">
-            {isL2 ? (
-              <button
-                type="button"
-                className="_memory-detail-atomic-head _memory-detail-atomic-head--btn"
-                onClick={() => onLoadItem?.(it.id)}
-                disabled={loading}
-              >
-                {head}
-              </button>
-            ) : (
-              <div className="_memory-detail-atomic-head">{head}</div>
-            )}
+            <div className="_memory-detail-atomic-toolbar">
+              {isL2 ? (
+                <button
+                  type="button"
+                  className="_memory-detail-atomic-head _memory-detail-atomic-head--btn"
+                  onClick={() => onLoadItem?.(it.id)}
+                  disabled={loading}
+                >
+                  {head}
+                </button>
+              ) : (
+                <div className="_memory-detail-atomic-head">{head}</div>
+              )}
+              {canDelete && layer !== 'L3' && (
+                <button
+                  type="button"
+                  className="_memory-detail-item-delete"
+                  onClick={() => onDeleteItem?.(it.id)}
+                  disabled={deleting}
+                  title={t('common.delete')}
+                  aria-label={t('common.delete')}
+                >
+                  <DeleteIcon size={12} />
+                </button>
+              )}
+            </div>
 
             {layer === 'L2' || layer === 'L3' ? (
               hasBody ? (
@@ -140,6 +167,9 @@ export function BlockDetail({
   onLayerPageChange,
   onLayerItemLoad,
   layerItemLoadingId,
+  canDeleteItems,
+  onDeleteItem,
+  deletingItemId,
   onL0LoadMore,
   l0MoreLoading,
   timeRange,
@@ -156,6 +186,10 @@ export function BlockDetail({
   onLayerPageChange: (page: number) => void;
   onLayerItemLoad?: (itemId: string) => void;
   layerItemLoadingId?: string | null;
+  /** 仅资产 Owner 可以删除；后端仍会再次做权限校验。 */
+  canDeleteItems?: boolean;
+  onDeleteItem?: (itemId: string) => void;
+  deletingItemId?: string | null;
   /** L0 加载更多（追加更早的对话）；未传则不展示加载入口 */
   onL0LoadMore?: () => void;
   l0MoreLoading?: boolean;
@@ -378,6 +412,18 @@ export function BlockDetail({
                         <InfoCircleIcon size={12} />
                         <span className="_memory-chat-system-text">{cleanBody}</span>
                         {time && <span className="_memory-chat-system-time">{time}</span>}
+                        {canDeleteItems && msg.id && (
+                          <button
+                            type="button"
+                            className="_memory-detail-item-delete"
+                            onClick={() => onDeleteItem?.(msg.id)}
+                            disabled={deletingItemId === msg.id}
+                            title={t('common.delete')}
+                            aria-label={t('common.delete')}
+                          >
+                            <DeleteIcon size={12} />
+                          </button>
+                        )}
                       </div>
                     );
                   }
@@ -394,6 +440,18 @@ export function BlockDetail({
                             <span className="_memory-chat-time" title={msg.created_at}>
                               {time}
                             </span>
+                          )}
+                          {canDeleteItems && msg.id && (
+                            <button
+                              type="button"
+                              className="_memory-detail-item-delete"
+                              onClick={() => onDeleteItem?.(msg.id)}
+                              disabled={deletingItemId === msg.id}
+                              title={t('common.delete')}
+                              aria-label={t('common.delete')}
+                            >
+                              <DeleteIcon size={12} />
+                            </button>
                           )}
                         </div>
                         <div className={`_memory-chat-bubble _memory-chat-bubble--${tone}`}>
@@ -416,6 +474,9 @@ export function BlockDetail({
             items={block.layers[layer]}
             onLoadItem={onLayerItemLoad}
             loadingItemId={layerItemLoadingId}
+            canDelete={canDeleteItems}
+            onDeleteItem={onDeleteItem}
+            deletingItemId={deletingItemId}
             timeFiltered={layer === 'L1' && showTimeFilter}
           />
         )}
