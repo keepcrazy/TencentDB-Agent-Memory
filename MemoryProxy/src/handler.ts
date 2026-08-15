@@ -1786,6 +1786,20 @@ function mergeToolCallDeltas(
   }
 }
 
+/** Return true once a complete SSE data line carries the terminal sentinel. */
+function hasCompleteSseDoneLine(sseText: string): boolean {
+  const lastLineBreak = sseText.lastIndexOf("\n");
+  if (lastLineBreak < 0) return false;
+
+  return sseText
+    .slice(0, lastLineBreak)
+    .split("\n")
+    .some((line) => {
+      const trimmed = line.trim();
+      return trimmed.startsWith("data:") && trimmed.slice(5).trim() === "[DONE]";
+    });
+}
+
 /** Create a TransformStream that passes bytes through unchanged,
  *  while extracting usage/content/tool_calls from SSE events in-band.
  */
@@ -1799,14 +1813,13 @@ function createUsageTapTransform(ctx: TapContext): TransformStream<Uint8Array, U
   const toolCallAccumulators = new Map<number, ToolCallAccumulator>();
 
   function processSseChunk(chunk: string): boolean {
-    sseBuf += chunk;
+    // Normalize CRLF only in the parsing buffer; forwarded bytes stay untouched.
+    // A trailing CR is retained until the next chunk arrives and completes CRLF.
+    sseBuf = (sseBuf + chunk).replace(/\r\n/g, "\n");
+    const sawDone = hasCompleteSseDoneLine(sseBuf);
     const parts = sseBuf.split("\n\n");
     sseBuf = parts.pop() ?? "";
-    let sawDone = false;
     for (const part of parts) {
-      if (part.split("\n").some((line) => line.trim() === "data: [DONE]")) {
-        sawDone = true;
-      }
       const usage = extractSseUsage(part);
       if (usage) lastUsage = usage;
       const { content, toolCallDeltas } = extractSseContentAndTools(part);

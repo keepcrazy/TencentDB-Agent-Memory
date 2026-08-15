@@ -26,7 +26,61 @@ describe("OpenAI stream finalization", () => {
 
     const decoder = new TextDecoder();
     let received = "";
-    while (!received.includes("data: [DONE]")) {
+    while (!/data:\s*\[DONE\]/.test(received)) {
+      const chunk = await reader!.read();
+      expect(chunk.done).toBe(false);
+      received += decoder.decode(chunk.value, { stream: true });
+    }
+    await reader!.cancel();
+
+    await vi.waitFor(() => expect(streamDoneCount()).toBe(1));
+  });
+
+  it("finalizes when the client cancels after the DONE line before the blank line arrives", async () => {
+    const upstream = createSseUpstream({
+      sendDone: true,
+      keepOpen: true,
+      doneFrame: "data: [DONE]\n",
+    });
+    servers.push(upstream);
+    const upstreamUrl = await listen(upstream);
+    const streamDoneCount = captureStreamDoneCount();
+    const response = await requestStream(upstreamUrl, "stream-split-done-test");
+
+    expect(response.status).toBe(200);
+    const reader = response.body?.getReader();
+    expect(reader).toBeDefined();
+
+    const decoder = new TextDecoder();
+    let received = "";
+    while (!/data:\s*\[DONE\]/.test(received)) {
+      const chunk = await reader!.read();
+      expect(chunk.done).toBe(false);
+      received += decoder.decode(chunk.value, { stream: true });
+    }
+    await reader!.cancel();
+
+    await vi.waitFor(() => expect(streamDoneCount()).toBe(1));
+  });
+
+  it("finalizes a CRLF DONE event without the optional data-field space", async () => {
+    const upstream = createSseUpstream({
+      sendDone: true,
+      keepOpen: true,
+      doneFrame: "data:[DONE]\r\n\r\n",
+    });
+    servers.push(upstream);
+    const upstreamUrl = await listen(upstream);
+    const streamDoneCount = captureStreamDoneCount();
+    const response = await requestStream(upstreamUrl, "stream-crlf-done-test");
+
+    expect(response.status).toBe(200);
+    const reader = response.body?.getReader();
+    expect(reader).toBeDefined();
+
+    const decoder = new TextDecoder();
+    let received = "";
+    while (!/data:\s*\[DONE\]/.test(received)) {
       const chunk = await reader!.read();
       expect(chunk.done).toBe(false);
       received += decoder.decode(chunk.value, { stream: true });
@@ -63,7 +117,11 @@ describe("OpenAI stream finalization", () => {
   });
 });
 
-function createSseUpstream(options: { sendDone: boolean; keepOpen: boolean }): Server {
+function createSseUpstream(options: {
+  sendDone: boolean;
+  keepOpen: boolean;
+  doneFrame?: string;
+}): Server {
   return createServer((request, response) => {
     request.resume();
     response.writeHead(200, {
@@ -86,7 +144,7 @@ function createSseUpstream(options: { sendDone: boolean; keepOpen: boolean }): S
         choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
       })}\n\n`,
     );
-    if (options.sendDone) response.write("data: [DONE]\n\n");
+    if (options.sendDone) response.write(options.doneFrame ?? "data: [DONE]\n\n");
     if (!options.keepOpen) response.end();
     // A kept-open body models OpenAI-compatible clients that stop at [DONE]
     // and close the response without waiting for transport EOF.
