@@ -91,7 +91,7 @@ export const createRequestSchema = z.object({
   ...idFieldsShape,
   name: z.string().min(1).max(64),
   content: z.string().min(1),
-  resources: z.array(skillResourcePayloadSchema).max(100).optional(),
+  resources: z.array(skillResourcePayloadSchema).max(256).optional(),
   metadata: z.record(z.string(), z.any()).optional(),
 }).superRefine(refineAgentNeedsTeam);
 

@@ -162,9 +162,27 @@ test_first_run_generates_default_config() {
   grep -F "初始化 gateway config → $config_file" "$output_file" >/dev/null
 }
 
+test_memory_max_body_bytes_is_forwarded_to_container() {
+  local case_dir="$TMP_ROOT/max-body-bytes"
+  local config_dir="$case_dir/config"
+  local env_file="$case_dir/.env"
+  local output_file="$case_dir/output.log"
+  local docker_log="$case_dir/docker.log"
+
+  mkdir -p "$case_dir"
+  write_env "$env_file" \
+    "MEMORY_CORE_CONFIG_DIR=$config_dir" \
+    'MEMORY_MAX_BODY_BYTES=8388608'
+
+  run_start "$env_file" "$output_file" "$docker_log"
+
+  grep -F 'MEMORY_MAX_BODY_BYTES=8388608' "$docker_log" >/dev/null
+}
+
 test_existing_generated_config_is_reused
 test_explicit_config_is_mounted_without_generating_default
 test_missing_explicit_config_fails_before_docker_run
 test_first_run_generates_default_config
+test_memory_max_body_bytes_is_forwarded_to_container
 
 echo "start-memory-core config lifecycle: ok"
