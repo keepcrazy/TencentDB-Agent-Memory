@@ -57,6 +57,18 @@ run_start() {
     bash "$GLOBAL_IMAGES_DIR/start-proxy.sh" >/dev/null 2>&1
 }
 
+extract_top_level_yaml_block() {
+  local section="$1"
+  local config_file="$2"
+
+  awk -v header="${section}:" '
+    $0 == header { found = 1; print; next }
+    found && /^[^[:space:]#]/ { exit }
+    found { print }
+    END { if (!found) exit 1 }
+  ' "$config_file"
+}
+
 test_explicit_external_gateway_url_is_written() {
   local case_dir="$TMP_ROOT/explicit"
   local env_file="$case_dir/.env"
@@ -84,7 +96,24 @@ test_default_external_gateway_url_uses_published_proxy_port() {
   grep -F 'externalGatewayUrl: "http://127.0.0.1:18096"' "$config_dir/config.yaml" >/dev/null
 }
 
+test_generated_config_disables_skill_extraction_but_keeps_memory_writes() {
+  local case_dir="$TMP_ROOT/extraction"
+  local env_file="$case_dir/.env"
+  local config_dir="$case_dir/config"
+  local expected actual
+
+  mkdir -p "$case_dir"
+  write_env "$env_file"
+
+  run_start "$env_file" "$config_dir"
+
+  expected=$'extraction:\n  enabled: true\n  extractors:\n    - tdai-memory'
+  actual="$(extract_top_level_yaml_block extraction "$config_dir/config.yaml")"
+  [[ "$actual" == "$expected" ]]
+}
+
 test_explicit_external_gateway_url_is_written
 test_default_external_gateway_url_uses_published_proxy_port
+test_generated_config_disables_skill_extraction_but_keeps_memory_writes
 
-echo "start-proxy external gateway config: ok"
+echo "start-proxy config: ok"
