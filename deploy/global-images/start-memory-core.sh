@@ -33,6 +33,11 @@ if [[ -n "$MEMORY_CORE_GATEWAY_API_KEY" ]]; then
   warn "本地体验请把 .env 里的 MEMORY_CORE_GATEWAY_API_KEY 留空。"
 fi
 
+# 在触碰现有容器前校验显式配置，避免因路径错误中断一个原本可用的实例。
+if [[ -n "${MEMORY_CORE_CONFIG_FILE:-}" ]]; then
+  [[ -f "$MEMORY_CORE_CONFIG_FILE" ]] || die "MEMORY_CORE_CONFIG_FILE 不存在或不是普通文件：$MEMORY_CORE_CONFIG_FILE"
+fi
+
 CONTAINER=tdai-memory-core
 NETWORK=tdai-memory-stack
 
@@ -45,15 +50,24 @@ fi
 pull_image "$MEMORY_CORE_IMAGE"
 rm_container_if_exists "$CONTAINER"
 
-# ── 生成 gateway config.yaml，挂到容器 /data/config/tdai-gateway.yaml ──
-# 默认镜像里没 config，memory-core 走编译时的默认（skill / knowledge 模块关闭）。
-# 从 .env 里的 MEMORY_LLM_* 生成一份 standalone+skill 的最小配置。
+# ── 准备 gateway config.yaml，挂到容器 /data/config/tdai-gateway.yaml ──
+# 优先使用 MEMORY_CORE_CONFIG_FILE 指定的外部配置；否则默认配置只在首次
+# 启动时生成，后续启动直接复用，避免覆盖实例级调整。
 CORE_CONFIG_DIR="${MEMORY_CORE_CONFIG_DIR:-$SCRIPT_DIR/.memory-core-config}"
-mkdir -p "$CORE_CONFIG_DIR"
-CORE_CONFIG_FILE="$CORE_CONFIG_DIR/tdai-gateway.yaml"
-info "生成 gateway config → $CORE_CONFIG_FILE"
-cat > "$CORE_CONFIG_FILE" <<YAML
-# 由 start-memory-core.sh 自动生成 —— 每次启动覆盖，请不要手动改。
+DEFAULT_CORE_CONFIG_FILE="$CORE_CONFIG_DIR/tdai-gateway.yaml"
+
+if [[ -n "${MEMORY_CORE_CONFIG_FILE:-}" ]]; then
+  CORE_CONFIG_FILE="$MEMORY_CORE_CONFIG_FILE"
+  info "使用外部 gateway config → $CORE_CONFIG_FILE"
+elif [[ -f "$DEFAULT_CORE_CONFIG_FILE" ]]; then
+  CORE_CONFIG_FILE="$DEFAULT_CORE_CONFIG_FILE"
+  info "复用已有 gateway config → $CORE_CONFIG_FILE"
+else
+  mkdir -p "$CORE_CONFIG_DIR"
+  CORE_CONFIG_FILE="$DEFAULT_CORE_CONFIG_FILE"
+  info "初始化 gateway config → $CORE_CONFIG_FILE"
+  cat > "$CORE_CONFIG_FILE" <<YAML
+# 由 start-memory-core.sh 首次启动时生成，后续启动不会覆盖。
 deployMode: standalone
 stateBackend: local
 
@@ -120,6 +134,7 @@ skill:
   resources:
     maxResourceSizeBytes: 5000000
 YAML
+fi
 
 info "启动 memory-core (image=$MEMORY_CORE_IMAGE, port=$MEMORY_CORE_PORT)"
 $DOCKER run -d --name "$CONTAINER" \
@@ -132,7 +147,11 @@ $DOCKER run -d --name "$CONTAINER" \
   -e TDAI_GATEWAY_PORT=8420 \
   -e TDAI_GATEWAY_HOST=0.0.0.0 \
   -e TDAI_GATEWAY_API_KEY="$MEMORY_CORE_GATEWAY_API_KEY" \
+  -e TDAI_GATEWAY_CONFIG=/data/config/tdai-gateway.yaml \
   -e TDAI_DATA_DIR=/data/tdai-memory \
+  -e TDAI_LLM_BASE_URL="${MEMORY_LLM_BASE_URL:-}" \
+  -e TDAI_LLM_API_KEY="${MEMORY_LLM_API_KEY:-}" \
+  -e TDAI_LLM_MODEL="${MEMORY_LLM_MODEL:-}" \
   "$MEMORY_CORE_IMAGE" >/dev/null
 
 wait_healthy "$CONTAINER" 90
