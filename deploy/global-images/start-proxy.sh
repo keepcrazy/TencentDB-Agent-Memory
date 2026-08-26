@@ -136,6 +136,13 @@ injection:
     - knowledge
     - tdai-memory
 
+# 本地部署策略：保留已有 Skill 的注入和读取，只关闭新对话的自动 Skill 提炼。
+# tdai-memory 继续把主对话写入 L0，供 Chat Memory 的 L1-L3 管线使用。
+extraction:
+  enabled: true
+  extractors:
+    - tdai-memory
+
 redis:
   enabled: false
 YAML
