@@ -1469,11 +1469,12 @@ export function registerChatMemoryRoutes(api: Hono, deps: PanelDeps): void {
 
   // ==========================================================================
   // POST /chat-memory/layer-delete
-  //   body: { block_id, layer: 'L0' | 'L1', message_ids?, session_ids?, ids? }
+  //   body: { block_id, layer: 'L0' | 'L1' | 'L2', message_ids?, session_ids?, ids?, path? }
   //
   // 详情页列表的批量删除入口：
   //   L0 → /v3/conversation/delete （message_ids 最多 5000 / session_ids 最多 100）
   //   L1 → /v3/atomic/delete       （ids 最多 5000）
+  //   L2 → /v3/scenario/rm         （单个场景 path）
   //
   // 权限：仅资产 Owner —— 读可以借入（见 /chat-memory/layer 的 ACL），
   // 但删除内容只允许 Owner，避免借入方清掉别人的记忆。
@@ -1489,9 +1490,15 @@ export function registerChatMemoryRoutes(api: Hono, deps: PanelDeps): void {
         typeof body?.layer === "string" ? body.layer.toUpperCase() : "";
 
       if (!blockId) return respondControlError(c, 400, "MISSING_BLOCK_ID");
-      if (layerRaw !== "L0" && layerRaw !== "L1")
+      if (layerRaw !== "L0" && layerRaw !== "L1" && layerRaw !== "L2")
         return respondControlError(c, 400, "INVALID_LAYER");
-      const layer = layerRaw as "L0" | "L1";
+      const layer = layerRaw as "L0" | "L1" | "L2";
+      const l2Path =
+        layer === "L2" && typeof body?.path === "string"
+          ? body.path.trim()
+          : "";
+      if (layer === "L2" && !l2Path)
+        return respondControlError(c, 400, "MISSING_PATH");
 
       const parsed = parseChatMemoryAssetId(blockId);
       // 用户自建 UserAsset（mem-xxx）没有关联 agent，没有数据面内容可删。
@@ -1553,6 +1560,15 @@ export function registerChatMemoryRoutes(api: Hono, deps: PanelDeps): void {
               ...(messageIds.length > 0 ? { message_ids: messageIds } : {}),
               ...(sessionIds.length > 0 ? { session_ids: sessionIds } : {}),
             },
+            cred,
+          );
+          return respondEnvelope(c, env);
+        }
+
+        if (layer === "L2") {
+          const env = await deps.kernelHttp.postEnvelope<unknown>(
+            "/v3/scenario/rm",
+            { ...idFields, path: l2Path },
             cred,
           );
           return respondEnvelope(c, env);

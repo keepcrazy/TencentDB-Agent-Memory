@@ -639,6 +639,12 @@ export const zhCN = {
   'memory.notify.loadFailed': '加载记忆块失败',
   'memory.notify.layerFailed': '加载层数据失败',
   'memory.notify.l2Failed': '加载 L2 原文失败',
+  'memory.confirm.deleteItem': '确认删除这条 {{layer}} 记忆？',
+  'memory.confirm.deleteItem.desc':
+    '只删除当前层条目，不会级联删除其他层的已生成记忆；后续提炼时仍可能再次生成。',
+  'memory.notify.deleteItemSuccess': '记忆已删除',
+  'memory.notify.deleteItemFailed': '删除记忆失败',
+  'memory.notify.deleteItemNotFound': '该记忆已不存在，请刷新后重试',
   'memory.notify.editSuccess': '已保存',
   'memory.notify.editFailed': '保存失败',
   'memory.notify.copied': '已复制',

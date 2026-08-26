@@ -662,6 +662,12 @@ export const enUS = {
   'memory.notify.loadFailed': 'Failed to load memory blocks',
   'memory.notify.layerFailed': 'Failed to load layer data',
   'memory.notify.l2Failed': 'Failed to load L2 content',
+  'memory.confirm.deleteItem': 'Delete this {{layer}} memory?',
+  'memory.confirm.deleteItem.desc':
+    'Only this layer item is removed. Existing memories in other layers are not deleted and may be generated again.',
+  'memory.notify.deleteItemSuccess': 'Memory deleted',
+  'memory.notify.deleteItemFailed': 'Failed to delete memory',
+  'memory.notify.deleteItemNotFound': 'This memory no longer exists. Refresh and try again.',
   'memory.notify.copied': 'Copied',
   'memory.notify.copyFailed': 'Copy failed',
   'memory.confirm.private':

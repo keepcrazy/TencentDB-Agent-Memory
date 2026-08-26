@@ -18,6 +18,7 @@ import {
   TimeIcon,
   SearchIcon,
   MoreIcon,
+  DeleteIcon,
 } from 'tea-icons-react';
 
 const { RangePicker } = DatePicker;
@@ -41,8 +42,11 @@ function AtomicHead({
   time,
   canEditItem,
   canCopyItem,
+  canDeleteItem,
   onEdit,
   onCopy,
+  onDelete,
+  deleting,
   expandable,
   expanded,
   loading,
@@ -54,8 +58,11 @@ function AtomicHead({
   time: string;
   canEditItem: boolean;
   canCopyItem: boolean;
+  canDeleteItem: boolean;
   onEdit?: (item: AtomicItem) => void;
   onCopy: () => void;
+  onDelete?: (item: AtomicItem) => void;
+  deleting?: boolean;
   /** L2 为 true：渲染 chevron 展开箭头、整行可点击展开/折叠 */
   expandable: boolean;
   /** 是否已展开（L2：hasBody） */
@@ -64,7 +71,7 @@ function AtomicHead({
   onToggle?: () => void;
 }) {
   const { t } = useTranslation();
-  const hasActions = canEditItem || canCopyItem;
+  const hasActions = canEditItem || canCopyItem || canDeleteItem;
   const withBody = expandable ? expanded || loading : true;
 
   const inner = (
@@ -111,6 +118,11 @@ function AtomicHead({
                 {canCopyItem && (
                   <List.Item onClick={() => void onCopy()}>
                     {t('common.copy')}
+                  </List.Item>
+                )}
+                {canDeleteItem && (
+                  <List.Item onClick={() => onDelete!(item)} disabled={deleting}>
+                    {t('common.delete')}
                   </List.Item>
                 )}
               </List>
@@ -196,6 +208,9 @@ function AtomicList({
   timeFiltered,
   canEdit,
   onEdit,
+  canDelete,
+  onDelete,
+  deletingItemId,
 }: {
   layer: MemoryLayer;
   items: AtomicItem[];
@@ -206,6 +221,10 @@ function AtomicList({
   canEdit?: boolean;
   /** 点击编辑单条 */
   onEdit?: (item: AtomicItem) => void;
+  /** 是否显示每条删除入口（仅资产 Owner；L1/L3 的调用方控制层范围） */
+  canDelete?: boolean;
+  onDelete?: (item: AtomicItem) => void;
+  deletingItemId?: string | null;
 }) {
   const { t } = useTranslation();
   const LAYERS = useLayers();
@@ -227,6 +246,7 @@ function AtomicList({
         const time = formatDisplayTime(it.created_at);
         const canEditItem = !!(canEdit && onEdit);
         const canCopyItem = true;
+        const canDeleteItem = !!(canDelete && onDelete);
         async function handleCopy() {
           const ok = await copyToClipboard(it.body);
           if (ok) {
@@ -244,8 +264,11 @@ function AtomicList({
               time={time}
               canEditItem={canEditItem}
               canCopyItem={canCopyItem}
+              canDeleteItem={canDeleteItem}
               onEdit={onEdit}
               onCopy={() => void handleCopy()}
+              onDelete={onDelete}
+              deleting={deletingItemId === it.id}
               expandable={false}
               expanded={false}
               loading={loading}
@@ -300,6 +323,9 @@ function L2AtomicList({
   loadingItemId,
   canEdit,
   onEdit,
+  canDelete,
+  onDelete,
+  deletingItemId,
 }: {
   items: AtomicItem[];
   onLoadItem?: (itemId: string) => void;
@@ -308,6 +334,9 @@ function L2AtomicList({
   canEdit?: boolean;
   /** 点击编辑单条 */
   onEdit?: (item: AtomicItem) => void;
+  canDelete?: boolean;
+  onDelete?: (item: AtomicItem) => void;
+  deletingItemId?: string | null;
 }) {
   const { t } = useTranslation();
   const LAYERS = useLayers();
@@ -329,6 +358,7 @@ function L2AtomicList({
         const canEditItem = !!(canEdit && onEdit && hasBody);
         // 复制入口：L2 有正文才可复制（未展开时无正文）。
         const canCopyItem = hasBody;
+        const canDeleteItem = !!(canDelete && onDelete);
         async function handleCopy() {
           // L2 正文带 META 头，复制时去掉，只给纯正文，与编辑框展示保持一致。
           const ok = await copyToClipboard(stripScenarioMeta(it.body));
@@ -347,8 +377,11 @@ function L2AtomicList({
               time={time}
               canEditItem={canEditItem}
               canCopyItem={canCopyItem}
+              canDeleteItem={canDeleteItem}
               onEdit={onEdit}
               onCopy={() => void handleCopy()}
+              onDelete={onDelete}
+              deleting={deletingItemId === it.id}
               expandable
               expanded={hasBody}
               loading={loading}
@@ -417,6 +450,9 @@ export function BlockDetail({
   rangeTooLarge,
   canEdit,
   onSaveLayerItem,
+  canDeleteItems,
+  onDeleteItem,
+  deletingItemId,
   onSearchLayer,
 }: {
   block: MemoryBlock;
@@ -447,6 +483,10 @@ export function BlockDetail({
     id: string,
     content: string,
   ) => Promise<void>;
+  /** 仅资产 Owner 可以删除 L0 / L1 / L2 条目；后端仍会再次校验。 */
+  canDeleteItems?: boolean;
+  onDeleteItem?: (itemId: string) => void;
+  deletingItemId?: string | null;
   /** 分层语义搜索（L0 = 对话消息，L1 = 原子记忆）；未传则不显示搜索框 */
   onSearchLayer?: (l: 'L0' | 'L1', query: string) => Promise<ChatMemorySearchHit[]>;
 }) {
@@ -931,6 +971,18 @@ export function BlockDetail({
                         <InfoCircleIcon size={12} />
                         <span className="_memory-chat-system-text">{cleanBody}</span>
                         {time && <span className="_memory-chat-system-time">{time}</span>}
+                        {canDeleteItems && msg.id && (
+                          <button
+                            type="button"
+                            className="_memory-detail-item-delete"
+                            onClick={() => onDeleteItem?.(msg.id)}
+                            disabled={deletingItemId === msg.id}
+                            title={t('common.delete')}
+                            aria-label={t('common.delete')}
+                          >
+                            <DeleteIcon size={12} />
+                          </button>
+                        )}
                       </div>
                     );
                   }
@@ -947,6 +999,18 @@ export function BlockDetail({
                             <span className="_memory-chat-time" title={msg.created_at}>
                               {time}
                             </span>
+                          )}
+                          {canDeleteItems && msg.id && (
+                            <button
+                              type="button"
+                              className="_memory-detail-item-delete"
+                              onClick={() => onDeleteItem?.(msg.id)}
+                              disabled={deletingItemId === msg.id}
+                              title={t('common.delete')}
+                              aria-label={t('common.delete')}
+                            >
+                              <DeleteIcon size={12} />
+                            </button>
                           )}
                         </div>
                         <div className={`_memory-chat-bubble _memory-chat-bubble--${tone}`}>
@@ -975,6 +1039,9 @@ export function BlockDetail({
               timeFiltered={layer === 'L1' && showTimeFilter && !isSearching}
               canEdit={canEdit && !!onSaveLayerItem}
               onEdit={openEdit}
+              canDelete={canDeleteItems && layer === 'L1'}
+              onDelete={(item) => onDeleteItem?.(item.id)}
+              deletingItemId={deletingItemId}
             />
           )
         ) : layer === 'L2' ? (
@@ -985,6 +1052,9 @@ export function BlockDetail({
             loadingItemId={layerItemLoadingId}
             canEdit={canEdit && !!onSaveLayerItem}
             onEdit={openEdit}
+            canDelete={canDeleteItems}
+            onDelete={(item) => onDeleteItem?.(item.id)}
+            deletingItemId={deletingItemId}
           />
         ) : (
           <AtomicList
@@ -994,6 +1064,9 @@ export function BlockDetail({
             timeFiltered={layer === 'L1' && showTimeFilter && !isSearching}
             canEdit={canEdit && !!onSaveLayerItem}
             onEdit={openEdit}
+            canDelete={canDeleteItems && layer === 'L1'}
+            onDelete={(item) => onDeleteItem?.(item.id)}
+            deletingItemId={deletingItemId}
           />
         )}
         {showPager && !isSearching && (

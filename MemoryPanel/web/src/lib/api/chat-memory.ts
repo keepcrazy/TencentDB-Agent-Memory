@@ -108,6 +108,16 @@ export const chatMemoryApi = {
       ...(timeEnd ? { time_end: timeEnd } : {}),
     }),
 
+  /** 删除单条分层记忆；L0/L1 复用批量接口，L2 使用单个场景 path。 */
+  deleteLayerItem: (blockId: string, layer: 'L0' | 'L1' | 'L2', itemId: string) =>
+    chatMemoryCall<{ deleted_count?: number } | undefined>('layer-delete', {
+      block_id: blockId,
+      layer,
+      ...(layer === 'L0' ? { message_ids: [itemId] } : {}),
+      ...(layer === 'L1' ? { ids: [itemId] } : {}),
+      ...(layer === 'L2' ? { path: itemId } : {}),
+    }),
+
   /** 批量设置某个 agent 的固定 memory，后端会原子校验借入上限。 */
   setAgentFixed: (teamId: string, agentId: string, blockIds: string[]) =>
     chatMemoryCall<{ updated: boolean; agent_id: string; block_ids: string[] }>('set-agent-fixed', {

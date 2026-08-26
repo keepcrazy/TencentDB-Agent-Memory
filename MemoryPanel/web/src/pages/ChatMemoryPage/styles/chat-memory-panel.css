@@ -950,6 +950,38 @@
   gap: 8px;
 }
 
+/* 单条 L0 / L1 / L2 删除：沿用旧补丁的低干扰图标入口。 */
+._memory-detail-item-delete {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--tea-color-text-tertiary);
+  cursor: pointer;
+  opacity: 0.65;
+  transition:
+    color 0.15s ease-in-out,
+    background-color 0.15s ease-in-out,
+    opacity 0.15s ease-in-out;
+}
+
+._memory-detail-item-delete:hover:not(:disabled) {
+  color: var(--tea-color-text-error-default);
+  background: var(--tea-color-bg-error-lighten-default);
+  opacity: 1;
+}
+
+._memory-detail-item-delete:disabled {
+  cursor: wait;
+  opacity: 0.35;
+}
+
 ._memory-detail-atomic-loading {
   font-size: 11px;
   color: var(--tea-color-text-tertiary);
